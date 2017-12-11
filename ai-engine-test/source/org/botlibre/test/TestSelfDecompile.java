@@ -19,10 +19,7 @@ package org.botlibre.test;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.botlibre.Bot;
 import org.botlibre.api.knowledge.Network;
 import org.botlibre.api.knowledge.Relationship;
@@ -31,14 +28,15 @@ import org.botlibre.knowledge.Primitive;
 import org.botlibre.self.Self4Compiler;
 import org.botlibre.self.SelfCompiler;
 import org.botlibre.self.SelfDecompiler;
-import org.botlibre.sense.text.TextEntry;
 import org.botlibre.thought.language.Language;
-import org.botlibre.util.Utils;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 /**
  * Test the state decompiler.
  */
-
+// TODO: Http fails because pattern state order is not correct for non-byte code compiler.
+// This may also cause AIML issues as "* *" should be processed before "*"
 public class TestSelfDecompile extends TestSelf {
 
 	@BeforeClass
@@ -65,7 +63,9 @@ public class TestSelfDecompile extends TestSelf {
 		network = bot.memory().newMemory();
 		language = network.createVertex(bot.mind().getThought(Language.class).getPrimitive());
 		Vertex script = SelfCompiler.getCompiler().parseStateMachine(TestWikidata.class.getResource("test.self"), "", false, network);
-		language.setRelationship(Primitive.STATE, script);
+		String code = SelfDecompiler.getDecompiler().decompileStateMachine(script, network);
+		Vertex newState = SelfCompiler.getCompiler().parseStateMachine(code, false, network);
+		language.setRelationship(Primitive.STATE, newState);
 		network.save();
 		
 		bot.shutdown();
