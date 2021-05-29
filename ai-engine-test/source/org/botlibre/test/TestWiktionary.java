@@ -17,33 +17,99 @@
  ******************************************************************************/
 package org.botlibre.test;
 
-import java.net.URL;
-
-import junit.framework.TestCase;
+import java.util.List;
 
 import org.botlibre.Bot;
-import org.botlibre.api.sense.Sense;
-import org.botlibre.knowledge.database.DatabaseMemory;
-import org.botlibre.sense.http.Http;
+import org.botlibre.sense.text.TextEntry;
+import org.botlibre.thought.language.Language;
+import org.botlibre.thought.language.Language.LearningMode;
+import org.botlibre.util.Utils;
+import org.junit.BeforeClass;
 
 /**
- * Test loading 100 words from Wiktionary sense.
+ * Test importing words from Wiktionary.
  */
 
-public class TestWiktionary extends TestCase {
+public class TestWiktionary extends TextTest {
 	
-	/**
-	 * Test loading 100 words from Wiktionary.
-	 */
-	public static void test100Words() throws Exception {
-		DatabaseMemory.TEST = true;
-		DatabaseMemory.RECREATE_DATABASE = true;
-		Bot.DEFAULT_DEBUG_LEVEL = Bot.FINE;
-		Bot bot = Bot.createInstance();
-		Sense sense = bot.awareness().getSense(Http.class.getName());
-		sense.input(new URL("http://en.wiktionary.org/wiki/Category:100_English_basic_words"));
-		bot.shutdown();
-	}	
+	public static int SLEEP = 5000;
 
+	@BeforeClass
+	public static void setup() {
+		bootstrap();
+	}
+
+	@org.junit.Test
+	public void testWords() {
+		Bot bot = Bot.createInstance();
+		Language language = bot.mind().getThought(Language.class);
+		language.setLearningMode(LearningMode.Disabled);
+		TextEntry text = bot.awareness().getSense(TextEntry.class);
+		List<String> output = registerForOutput(text);
+
+		text.input("define sky");
+		String response = waitForOutput(output);
+		if (!response.equals("The atmosphere above a given point, especially as visible from the ground during the day.")) {
+			fail("Incorrect: " + response);
+		}
+		
+		text.input("define blue");
+		response = waitForOutput(output);
+		if (!response.equals("Of the colour blue.")) {
+			fail("Incorrect: " + response);
+		}
+		
+		text.input("define like");
+		response = waitForOutput(output);
+		if (!response.equals("To please.")) {
+			fail("Incorrect: " + response);
+		}
+
+		text.input("is sky a thing?");
+		response = waitForOutput(output);
+		assertTrue(response);
+
+		text.input("is blue a thing?");
+		response = waitForOutput(output);
+		assertTrue(response);
+		
+		text.input("is sky blue?");
+		response = waitForOutput(output);
+		assertUnknown(response);
+		
+		text.input("the sky is blue");
+		response = waitForOutput(output);
+		assertKnown(response);
+		
+		text.input("is sky blue?");
+		response = waitForOutput(output);
+		assertTrue(response);
+		
+		text.input("I like blue");
+		response = waitForOutput(output);
+		assertKnown(response);
+		
+		text.input("Do I like blue?");
+		response = waitForOutput(output);
+		assertTrue(response);
+		
+		text.input("what do I like?");
+		response = waitForOutput(output);
+		assertKeyword(response, "blue");
+		
+		text.input("what is the time?");
+		response = waitForOutput(output);
+		if (response.equals("what is the time?")) {
+			fail("did not understand time");
+		}
+		
+		text.input("what is the date?");
+		response = waitForOutput(output);
+		if (response.equals("what is the date?")) {
+			fail("did not understand date");
+		}
+
+		bot.shutdown();
+	}
 }
 

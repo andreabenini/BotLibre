@@ -14,6 +14,7 @@ state Understanding {
 
 		case a goto sentenceState;
 		case the goto sentenceState;
+		case "remember" goto sentenceState;
 
 		case nounPossessive goto nounQuoteState;
 		case noun goto nounState;
@@ -276,7 +277,7 @@ state Understanding {
 					case a2 goto nounVerbAdjectiveState;
 					case "," goto verbNounAdjectiveState;
 					case or goto nounVerbAdjectiveState;
-					case and goto nounVerbAdjectiveState;					
+					case and goto nounVerbAdjectiveState;
 					case questionWord goto questionState;
 					case punctuation goto nounVerbAdjectiveState;
 
@@ -443,15 +444,6 @@ state Understanding {
 							// "What is my age?" else "Does my dog like you?"
 							if (action == #is) {
 								action = thing2;
-							} else {
-								existing = thing[thing2];
-								if (existing == null) {
-									newthing = new (thing2, #thing);
-									thing[thing2] =+ newthing;
-									thing = newthing;
-								} else {
-									thing = existing;
-								}
 							}
 						}
 						if (thing2 != null) {
@@ -465,12 +457,9 @@ state Understanding {
 							questionResponse();
 						} else {
 							commonTense();
-							if ((description2 != null) && (! isNot)) {
-								thing.weakAddWithMeta(action, description2, #tense, tense);
-							}
 							// Allow the bot to be less trusting, and understand in the context of the user.
 							// So the bot's knowledge is isolated to each user.
-							if (isolate) {
+							if (isolate && thing != speaker) {
 								var view = speaker.get(#view);
 								if (view == null) {
 									view = new Object();
@@ -482,6 +471,22 @@ state Understanding {
 									view.set(thing, thingView);
 								}
 								thing = thingView;
+							}
+							if (noun2 != null) {
+								// "my age is 44" else "my dog likes you"
+								if (action != #is) {
+									existing = thing[thing2];
+									if (existing == null) {
+										newthing = new (thing2, #thing);
+										thing[thing2] =+ newthing;
+										thing = newthing;
+									} else {
+										thing = existing;
+									}
+								}
+							}
+							if ((description2 != null) && (! isNot)) {
+								thing.weakAddWithMeta(action, description2, #tense, tense);
 							}
 							if (descriptions == null) {
 								if (isNot) {
@@ -574,12 +579,25 @@ state Understanding {
 							return whoWhatQuestionResponse();
 						}
 						// Allow the bot to understand in the context of the user.
-						if (isolate) {
+						if (isolate && thing != speaker) {
 							var view = speaker.get(#view);
 							if (view != null) {
 								var thingView = view.get(thing);
 								if (thingView != null) {
 									thing = thingView;
+								}
+							}
+						}
+						if (noun2 != null) {
+							// "What is my age?" else "Does my dog like you?"
+							if (action != #is) {
+								existing = thing[thing2];
+								if (existing == null) {
+									newthing = new (thing2, #thing);
+									thing[thing2] =+ newthing;
+									thing = newthing;
+								} else {
+									thing = existing;
 								}
 							}
 						}
@@ -646,7 +664,7 @@ state Understanding {
 									if (isNot) {
 										if (result) {
 											doNot = true;
-										} else {			
+										} else {
 											if ((result == false) && (value == null)) {
 												doNot = true;
 											}
@@ -1015,10 +1033,10 @@ state Understanding {
 			}
 			
 			// 'I am a nice human'
-			state nounVerbAdjectiveNounEndState {			
+			state nounVerbAdjectiveNounEndState {
 				case "," goto verbNounAdjectiveState;
 				case or goto nounVerbAdjectiveState;
-				case and goto nounVerbAdjectiveState;					
+				case and goto nounVerbAdjectiveState;
 				case questionWord goto questionState;
 				case punctuation goto nounVerbAdjectiveNounEndState;
 
@@ -1216,7 +1234,7 @@ state Understanding {
 				case does goto whatDoState;
 				case is goto whatIsState;
 				case verb goto whatVerbState;
-				case quote0 goto WhatQuoteState;				
+				case quote0 goto WhatQuoteState;
 		
 				var is {
 					meaning : #is;
@@ -1237,7 +1255,7 @@ state Understanding {
 		
 				// 'What is...'
 				// TODO "what is blue" -> "What things are blue" vs "what does blue mean"
-				state whatIsState {					
+				state whatIsState {
 					do {
 						verb = is;
 						action = #is;

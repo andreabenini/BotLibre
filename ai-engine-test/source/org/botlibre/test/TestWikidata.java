@@ -27,7 +27,7 @@ import org.botlibre.util.Utils;
 import org.junit.BeforeClass;
 
 /**
- * Test the performance of the Freebase batch import.
+ * Test importing data from WikiData.
  */
 
 public class TestWikidata extends TextTest {
@@ -39,23 +39,17 @@ public class TestWikidata extends TextTest {
 		bootstrap();
 	}
 
-	/**
-	 * Test response mimicry works.
-	 */
 	@org.junit.Test
 	public void testImport() throws Exception {
 		Utils.sleep(SLEEP);
 		Bot bot = Bot.createInstance();
 		//Sense sense = bot.awareness().getSense(Http.class.getName());
 		//sense.input(new URL("http://www.freebase.com/physics/particle"));
-		Utils.sleep(5000);
+		//Utils.sleep(5000);
 		
-		bot.shutdown();		
+		bot.shutdown();
 	}
 
-	/**
-	 * Test response mimicry works.
-	 */
 	@org.junit.Test
 	public void testWhatIs() {
 		Utils.sleep(SLEEP);
@@ -64,24 +58,25 @@ public class TestWikidata extends TextTest {
 		language.setLearningMode(LearningMode.Disabled);
 		TextEntry text = bot.awareness().getSense(TextEntry.class);
 		List<String> output = registerForOutput(text);
+		
 		text.input("what is Uranium?");
 		String response = waitForOutput(output);
 		if (!response.equals("radioactive, metallic element with the atomic number 92")) {
-			fail("Incorrect: " + response);			
+			fail("Incorrect: " + response);
 		}
 		
 		Utils.sleep(SLEEP);
 		text.input("tell me about Oxygen");
 		response = waitForOutput(output);
 		if (!response.equals("element with the atomic number of 8")) {
-			fail("Incorrect: " + response);			
+			fail("Incorrect: " + response);
 		}
 
 		Utils.sleep(SLEEP);
 		text.input("define water");
 		response = waitForOutput(output);
 		if (!response.equals("A substance found at room temperature and pressure as a clear liquid; it is present naturally as rain, and found in rivers, lakes and seas; its solid form is ice and its gaseous form is steam.")) {
-			fail("Incorrect: " + response);			
+			fail("Incorrect: " + response);
 		}
 
 		Utils.sleep(SLEEP);
@@ -119,9 +114,21 @@ public class TestWikidata extends TextTest {
 			fail("Incorrect: " + response);
 		}
 
+		bot.shutdown();
+	}
+
+	@org.junit.Test
+	public void testWhereIs() {
+		Utils.sleep(SLEEP);
+		Bot bot = Bot.createInstance();
+		Language language = bot.mind().getThought(Language.class);
+		language.setLearningMode(LearningMode.Disabled);
+		TextEntry text = bot.awareness().getSense(TextEntry.class);
+		List<String> output = registerForOutput(text);
+
 		Utils.sleep(SLEEP);
 		text.input("where is Montreal?");
-		response = waitForOutput(output);
+		String response = waitForOutput(output);
 		checkResponse(response, "Montreal is in Canada.");
 
 		Utils.sleep(SLEEP);

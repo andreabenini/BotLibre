@@ -107,11 +107,11 @@ public class Date extends BasicTool {
 		} else if (value instanceof java.sql.Timestamp) {
 			java.sql.Timestamp timestamp = (java.sql.Timestamp)value;
 			String nanosString;
-	        if (timestamp.getNanos() == 0) {
-	            nanosString = "0";
-	        } else {
-	            nanosString = Utils.buildZeroPrefixAndTruncTrailZeros(timestamp.getNanos(), 9);
-	        }
+			if (timestamp.getNanos() == 0) {
+				nanosString = "0";
+			} else {
+				nanosString = Utils.buildZeroPrefixAndTruncTrailZeros(timestamp.getNanos(), 9);
+			}
 			return source.getNetwork().createVertex(Utils.parseTimestamp(
 					calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE)
 					+ " " + calendar.get(Calendar.HOUR_OF_DAY) + ":" + calendar.get(Calendar.MINUTE) + ":" + calendar.get(Calendar.SECOND)
@@ -499,6 +499,14 @@ public class Date extends BasicTool {
 		}
 		return source.getNetwork().createVertex(value);
 	}
+
+	public Vertex getMillis(Vertex source, Vertex date) throws Exception {
+		return source.getNetwork().createVertex(((java.util.Date)date.getData()).getTime());
+	}
+
+	public Vertex getMillis(Vertex source) throws Exception {
+		return source.getNetwork().createVertex(System.currentTimeMillis());
+	}
 	
 	public Vertex printDate(Vertex source, Vertex date, Vertex format) {
 		return printDate(source, date, format, null, null);
@@ -562,7 +570,7 @@ public class Date extends BasicTool {
 			text = text.replace("%H", String.valueOf(calendar.get(Calendar.HOUR_OF_DAY)));
 		}
 		if (text.contains("%I")) {
-			text = text.replace("%I", String.valueOf(calendar.get(Calendar.HOUR) + 1));
+			text = text.replace("%I", String.valueOf(calendar.get(Calendar.HOUR))); // Do not +1, no daylight savings.
 		}
 		if (text.contains("%j")) {
 			text = text.replace("%j", String.valueOf(calendar.get(Calendar.DAY_OF_YEAR)));

@@ -52,7 +52,7 @@ import org.xml.sax.InputSource;
 
 public class RemoteService extends BasicSense {
 	public static String PANNOUS = "http://weannie.pannous.com";
-	public static String SERVER = "http://www.botlibre.com";
+	public static String SERVER = "https://www.botlibre.com";
 	
 	protected ThreadLocal<DocumentBuilder> parser = new ThreadLocal<DocumentBuilder>();
 
@@ -72,11 +72,11 @@ public class RemoteService extends BasicSense {
 				if (service.equals(Primitive.PANNOUS)) {
 					return requestPannous(message, botid, server, apikey, limit);
 				} else if (service.equals(Primitive.BOTLIBRE)) {
-					server = SERVER;					
+					server = SERVER;
 				} else if (service.equals(Primitive.BOTLIBRETWITTER)) {
-					server = "http://twitter.botlibre.com";					
+					server = "https://twitter.botlibre.com";
 				} else if (service.equals(Primitive.PAPHUS)) {
-					server = "http://www.botlibre.biz";					
+					server = "https://www.botlibre.biz";
 				} else if (service.equals(Primitive.WIKIDATA)) {
 					return requestWikidata(message, botid, server, apikey, limit, hint, network);
 				} else if (service.equals(Primitive.FREEBASE)) {
@@ -115,7 +115,7 @@ public class RemoteService extends BasicSense {
 			}
 			url = url + "&input=" + Utils.encodeURL(message);
 			log("SERVICE", Level.INFO, url);
-			InputStream stream = Utils.openStream(new URL(url), 20000);
+			InputStream stream = Utils.openStream(Utils.safeURL(url), 20000);
 			String result = Utils.loadTextFile(stream, "UTF-8", 1000000);
 			log("Response", Level.FINE, result);
 			Element dom = parseXML(result);
@@ -338,7 +338,7 @@ public class RemoteService extends BasicSense {
 			}
 			String url = server + "/api?input=" + Utils.encodeURL(message);
 			log("PANNOUS", Level.INFO, url);
-			InputStream stream = Utils.openStream(new URL(url));
+			InputStream stream = Utils.openStream(Utils.safeURL(url));
 			String result = Utils.loadTextFile(stream, "UTF-8", 1000000);
 			log("Response", Level.INFO, result);
 			JSONObject json = (JSONObject)JSONSerializer.toJSON(result);

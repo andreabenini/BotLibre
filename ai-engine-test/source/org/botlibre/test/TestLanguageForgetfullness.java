@@ -64,7 +64,7 @@ public class TestLanguageForgetfullness extends TestLanguage {
 		}
 		network.save();
 
-		text.input("sky blue red dog cat green grass tall like very loves");
+		text.input("sky blue red dog barks all night the cat green grass tall like very loves good Dirt dirt");
 		waitForOutput(output);
 		Utils.sleep(20000);
 		

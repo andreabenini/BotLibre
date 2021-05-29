@@ -365,6 +365,9 @@ public class SelfCompiler {
 	 * Get the contents of the URL to a .self file and parse it.
 	 */
 	public Vertex parseStateMachine(URL url, String encoding, boolean debug, Network network) {
+		if (url == null) {
+			return null;
+		}
 		try {
 			return parseStateMachine(Utils.openStream(url), debug, network, encoding, MAX_FILE_SIZE);
 		} catch (IOException exception) {
@@ -423,12 +426,15 @@ public class SelfCompiler {
 		// Always pin one level deep.
 		for (Iterator<Relationship> iterator = element.allRelationships(); iterator.hasNext(); ) {
 			Relationship relationship = iterator.next();
-			relationship.setPinned(true);
+			// TODO: This can't pin all relationships, they will never gc. (#next, #sentence, #pattern)
+			//relationship.setPinned(true);
 			relationship.getTarget().setPinned(true);
 		}
 		if (element.instanceOf(Primitive.VARIABLE)) {
 			for (Iterator<Relationship> iterator = element.allRelationships(); iterator.hasNext(); ) {
-				Vertex variable = iterator.next().getTarget();
+				Relationship relationship = iterator.next();
+				relationship.setPinned(true);
+				Vertex variable = relationship.getTarget();
 				if (variable.instanceOf(Primitive.VARIABLE)) {
 					pin(element, relations, groupId, processed);
 				}
@@ -437,6 +443,7 @@ public class SelfCompiler {
 			Collection<Relationship> relationships = element.getRelationships(Primitive.WORD);
 			if (relationships != null) {
 				for (Relationship relationship : relationships) {
+					relationship.setPinned(true);
 					pin(relationship.getTarget(), relations, groupId, processed);
 				}
 			}
@@ -444,6 +451,7 @@ public class SelfCompiler {
 			Collection<Relationship> relationships = element.getRelationships(Primitive.WORD);
 			if (relationships != null) {
 				for (Relationship relationship : relationships) {
+					relationship.setPinned(true);
 					pin(relationship.getTarget(), relations, groupId, processed);
 				}
 			}
@@ -507,6 +515,9 @@ public class SelfCompiler {
 		element.getNetwork().getBot().log(this, "Unpin state machine", Level.INFO, element);
 		Set<Vertex> processed = new HashSet<Vertex>();
 		unpin(element, PINNED, processed);
+		if (element.hasRelationship(Primitive.SOURCECODE)) {
+			element.getRelationship(Primitive.SOURCECODE).setPinned(false);
+		}
 	}
 	
 	public void unpin(Vertex element, List<Primitive> relations, Set<Vertex> processed) {
@@ -629,7 +640,7 @@ public class SelfCompiler {
 			} else if (element.equals("/")) {
 				comments = getComments(stream);
 				if (comments.isEmpty()) {
-					throw new SelfParseException("Unknown element: " + element, stream);					
+					throw new SelfParseException("Unknown element: " + element, stream);
 				}
 				vertex = null; // Associate the comments with the next element parsed.
 			} else {
@@ -638,7 +649,7 @@ public class SelfCompiler {
 			if (debug && (comments != null) && (vertex != null)) {
 				for (String comment : comments) {
 					vertex.addRelationship(Primitive.COMMENT, network.createVertex(comment), Integer.MAX_VALUE);
-				}	
+				}
 				comments = null;
 			}
 			element = stream.peekWord();
@@ -673,11 +684,11 @@ public class SelfCompiler {
 			String next = stream.nextWord();
 			while (!("}".equals(next))) {
 				if (next == null) {
-					throw new SelfParseException("Unexpected end of quotient, missing '}'", stream);				
+					throw new SelfParseException("Unexpected end of quotient, missing '}'", stream);
 				}
 				next = next.toLowerCase();
 				if (!(PREVIOUS.equals(next))) {
-					throw new SelfParseException("Unexpected word: '" + next + "' expected 'PREVIOUS'", stream);				
+					throw new SelfParseException("Unexpected word: '" + next + "' expected 'PREVIOUS'", stream);
 				}
 				ensureNext("is", stream);
 				boolean not = false;
@@ -685,8 +696,8 @@ public class SelfCompiler {
 				if (NOT.equals(next)) {
 					not = true;
 					stream.nextWord();
-				}				
-				Vertex previous = parseElement(stream, elements, debug, network);				
+				}
+				Vertex previous = parseElement(stream, elements, debug, network);
 				ensureNext(';', stream);
 				if (not) {
 					meta.removeRelationship(Primitive.PREVIOUS, previous);
@@ -1194,7 +1205,7 @@ public class SelfCompiler {
 		String next = stream.nextWord();
 		next = next.toLowerCase();
 		if (!OPERATORS.contains(next)) {
-			throw new SelfParseException("Invalid operator: '" + next + "' valid operators are: " + OPERATORS, stream);						
+			throw new SelfParseException("Invalid operator: '" + next + "' valid operators are: " + OPERATORS, stream);
 		}
 		if (next.equals(IS)) {
 			next = Primitive.RELATION.getIdentity();
@@ -1264,7 +1275,7 @@ public class SelfCompiler {
 			if (THEN.equals(next)) {
 				stream.nextWord();
 				parseArguments(equation, Primitive.THEN, 0, stream, elements, false, debug, network);
-				next = lower(stream.peekWord());					
+				next = lower(stream.peekWord());
 			}
 			if (ELSE.equals(next)) {
 				stream.nextWord();

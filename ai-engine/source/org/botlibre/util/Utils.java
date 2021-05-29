@@ -22,15 +22,19 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -65,18 +69,24 @@ import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.content.ByteArrayBody;
+import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.util.EntityUtils;
 import org.botlibre.BotException;
 import org.eclipse.persistence.internal.helper.Helper;
 import org.owasp.encoder.Encode;
@@ -95,6 +105,7 @@ public class Utils {
 	public static final int EVERYONE = 0;
 	public static final int TEEN = 1;
 	public static final int MATURE = 2;
+	public static final int ADULT = 3;
 	
 	public static int MAX_FILE_SIZE = 10000000;  // 10 meg
 	public static long MINUTE = 60L * 1000L;
@@ -112,7 +123,11 @@ public class Utils {
 	
 	public static DocumentBuilderFactory xmlFactory = DocumentBuilderFactory.newInstance();
 	public static PolicyFactory sanitizer;
-
+	public static boolean requireHttps = false;
+	public static boolean requireDomanName = true;
+	
+	public static ThreadLocal<HttpClient> client = new ThreadLocal<HttpClient>();
+	
 	public static String[] MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"};
 	
 	static {
@@ -170,6 +185,7 @@ public class Utils {
 		
 		profanityMapEveryone.putAll(profanityMap);
 		profanityMapEveryone.put("sex", "gender");
+		profanityMapEveryone.put("sexy", "nice");
 		profanityMapEveryone.put("bastard", "idiot");
 		profanityMapEveryone.put("boobs", "privates");
 	}
@@ -187,11 +203,24 @@ public class Utils {
 		return value;
 	}
 	
+	public static HttpClient getClient() {
+		// For some reason get occasional errors of "Invalid use of BasicClientConnManager: connection still allocated"
+		// when thread local caching the connection, even though entity is consumed in finally...
+		//if (client.get() == null) {
+			HttpParams httpParams = new BasicHttpParams();
+			HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
+			HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
+			return new DefaultHttpClient(httpParams);
+		//	client.set(new DefaultHttpClient(httpParams));
+		//}
+		//return client.get();
+	}
+	
 	public static PolicyFactory sanitizer() {
 		if (sanitizer == null) {
 			sanitizer = Sanitizers.FORMATTING.and(Sanitizers.BLOCKS).and(Sanitizers.IMAGES).and(Sanitizers.STYLES);
 			PolicyFactory html = new HtmlPolicyBuilder()
-				.allowElements("table", "tr", "td", "thead", "tbody", "th", "font", "button", "input", "select", "option", "video", "audio")
+				.allowElements("table", "tr", "td", "thead", "tbody", "th", "hr", "font", "button", "input", "select", "option", "video", "audio")
 				.allowAttributes("class").globally()
 				.allowAttributes("color").globally()
 				.allowAttributes("bgcolor").globally()
@@ -205,8 +234,9 @@ public class Utils {
 				.allowAttributes("muted").globally()
 				.allowAttributes("loop").globally()
 				.allowAttributes("poster").globally()
-				.allowUrlProtocols("http", "https", "mailto", "chat").allowElements("a")
-				.allowAttributes("href").onElements("a").requireRelNofollowOnLinks()
+				.allowElements("a").requireRelNofollowOnLinks()
+				.allowAttributes("href").onElements("a")
+				.allowUrlProtocols("http", "https", "mailto", "chat")
 				.toFactory();
 			sanitizer = sanitizer.and(html);
 		}
@@ -214,15 +244,18 @@ public class Utils {
 	}
 	
 	public static String sanitize(String html) {
+		if (html == null || html.isEmpty()) {
+			return html;
+		}
 		String result = sanitizer().sanitize(html);
 		if (result.contains("&")) {
 			// The sanitizer is too aggressive and escaping some chars.
 			//result = result.replace("&#34;", "\"");
-			result = result.replace("&#96;", "`");
+			//result = result.replace("&#96;", "`");
 			//result = result.replace("&#39;", "'");
 			result = result.replace("&#64;", "@");
 			result = result.replace("&#61;", "=");
-			result = result.replace("&amp;", "&");
+			//result = result.replace("&amp;", "&");
 		}
 		return result;
 	}
@@ -245,7 +278,7 @@ public class Utils {
 			return URLEncoder.encode(url, "UTF-8");
 		} catch (Exception exception) {
 			return "";
-		}		
+		}
 	}
 	
 	public static String decodeURL(String url) {
@@ -254,6 +287,14 @@ public class Utils {
 		} catch (Exception exception) {
 			return "";
 		}
+	}
+	
+	public static String upTo(String text, String token) {
+		int index = text.indexOf(token);
+		if (index == -1) {
+			return text;
+		}
+		return text.substring(0, index);
 	}
 	
 	public static int random(int max) {
@@ -275,7 +316,7 @@ public class Utils {
 		int index = 0;
 		for (T element : collection) {
 			if (index == value) {
-				return element;				
+				return element;
 			}
 			index++;
 		}
@@ -475,7 +516,7 @@ public class Utils {
 		HttpParams httpParams = new BasicHttpParams();
 		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
 		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient(); //new DefaultHttpClient(httpParams);
 		HttpResponse response = client.execute(request, new BasicHttpContext());
 		return fetchResponse(response);
 	}
@@ -483,15 +524,12 @@ public class Utils {
 	public static String httpDELETE(String url) throws Exception {
 		HttpDelete request = new HttpDelete(url);
 		request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
-		HttpParams httpParams = new BasicHttpParams();
-		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient();
 		HttpResponse response = client.execute(request, new BasicHttpContext());
 		return fetchResponse(response);
 	}
 	
-	public static String httpAuthGET(String url, String user, String password) throws Exception {		
+	public static String httpAuthGET(String url, String user, String password) throws Exception {
 		HttpGet request = new HttpGet(url);
 		request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
 		HttpParams httpParams = new BasicHttpParams();
@@ -505,7 +543,7 @@ public class Utils {
 		return fetchResponse(response);
 	}
 	
-	public static String httpAuthGET(String url, String user, String password, String agent) throws Exception {		
+	public static String httpAuthGET(String url, String user, String password, String agent) throws Exception {
 		HttpGet request = new HttpGet(url);
 		request.setHeader("User-Agent", agent);
 		HttpParams httpParams = new BasicHttpParams();
@@ -568,30 +606,55 @@ public class Utils {
 		StringEntity params = new StringEntity(data, "utf-8");
 		request.addHeader("content-type", type);
 		request.setEntity(params);
-		HttpParams httpParams = new BasicHttpParams();
-		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient();
 		HttpResponse response = client.execute(request);
-		return fetchResponse(response);
+		//try {
+			return fetchResponse(response);
+		/*} finally {
+			request.releaseConnection();
+			client.getConnectionManager().shutdown();
+		}*/
 	}
 	
-	public static HttpResponse httpPOSTReturnResponse(String url, String type, String data, Map<String, String> headers) throws Exception {
-        HttpPost request = new HttpPost(url);
+	public static String httpPOST(String url, String type, String data, Map<String, String> headers, byte[] file, String fileName) throws Exception {
+		HttpPost request = new HttpPost(url);
 		if (headers != null) {
 			for (Entry<String, String> header : headers.entrySet()) {
 				request.setHeader(header.getKey(), header.getValue());
 			}
 		}
-        request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
-        StringEntity params = new StringEntity(data, "utf-8");
-        request.addHeader("content-type", type);
-        request.setEntity(params);
-        HttpParams httpParams = new BasicHttpParams();
-        HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-        HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
-        HttpResponse response = client.execute(request);
+		request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
+
+		ByteArrayBody fileBody = new ByteArrayBody(file, fileName);
+		
+		MultipartEntity multipartEntity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
+		multipartEntity.addPart("file", fileBody);
+		multipartEntity.addPart("xml", new StringBody(data, type, Charset.forName("UTF-8")));
+		
+		request.setEntity(multipartEntity);
+		HttpClient client = getClient();
+		HttpResponse response = client.execute(request);
+		//try {
+			return fetchResponse(response);
+		/*} finally {
+			request.releaseConnection();
+			client.getConnectionManager().shutdown();
+		}*/
+	}
+	
+	public static HttpResponse httpPOSTReturnResponse(String url, String type, String data, Map<String, String> headers) throws Exception {
+		HttpPost request = new HttpPost(url);
+		if (headers != null) {
+			for (Entry<String, String> header : headers.entrySet()) {
+				request.setHeader(header.getKey(), header.getValue());
+			}
+		}
+		request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
+		StringEntity params = new StringEntity(data, "utf-8");
+		request.addHeader("content-type", type);
+		request.setEntity(params);
+		HttpClient client = getClient();
+		HttpResponse response = client.execute(request);
 		return response;
 	}
 	
@@ -601,10 +664,7 @@ public class Utils {
 		StringEntity params = new StringEntity(data, "utf-8");
 		request.addHeader("content-type", type);
 		request.setEntity(params);
-		HttpParams httpParams = new BasicHttpParams();
-		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient();
 		HttpResponse response = client.execute(request);
 		return fetchResponse(response);
 	}
@@ -615,15 +675,12 @@ public class Utils {
 		StringEntity params = new StringEntity(data, "utf-8");
 		request.addHeader("content-type", type);
 		request.setEntity(params);
-		HttpParams httpParams = new BasicHttpParams();
-		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient();
 		HttpResponse response = client.execute(request);
 		return fetchResponse(response);
 	}
 	
-	public static String httpAuthPOST(String url, String user, String password, Map<String, String> formParams) throws Exception {		
+	public static String httpAuthPOST(String url, String user, String password, Map<String, String> formParams) throws Exception {
 		HttpPost request = new HttpPost(url);
 		request.setHeader("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
 		List<NameValuePair> params = new ArrayList<NameValuePair>();
@@ -642,11 +699,11 @@ public class Utils {
 		return fetchResponse(response);
 	}
 	
-	public static String httpPOST(String url, Map<String, String> formParams) throws Exception {		
+	public static String httpPOST(String url, Map<String, String> formParams) throws Exception {
 		return httpPOST(url, formParams, null);
 	}
 	
-	public static String httpPOST(String url, Map<String, String> formParams, Map<String, String> headers) throws Exception {		
+	public static String httpPOST(String url, Map<String, String> formParams, Map<String, String> headers) throws Exception {
 		HttpPost request = new HttpPost(url);
 		if (headers != null) {
 			for (Entry<String, String> header : headers.entrySet()) {
@@ -659,25 +716,31 @@ public class Utils {
 			params.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
 		}
 		request.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
-		HttpParams httpParams = new BasicHttpParams();
-		HttpConnectionParams.setConnectionTimeout(httpParams, URL_TIMEOUT);
-		HttpConnectionParams.setSoTimeout(httpParams, URL_TIMEOUT);
-		DefaultHttpClient client = new DefaultHttpClient(httpParams);
+		HttpClient client = getClient();
 		HttpResponse response = client.execute(request);
-		return fetchResponse(response);
+		//try {
+			return fetchResponse(response);
+		/*} finally {
+			request.releaseConnection();
+			client.getConnectionManager().shutdown();
+		}*/
 	}
 	
 	public static String fetchResponse(HttpResponse response) throws Exception {
 		HttpEntity entity = response.getEntity();
 		String result = "";
-		if (entity != null) {
-			InputStream stream = entity.getContent();
-			result = Utils.loadTextFile(stream, "UTF-8", MAX_FILE_SIZE);
-		}
-		if ((response.getStatusLine().getStatusCode() < 200) || (response.getStatusLine().getStatusCode() > 302)) {
-			throw new RuntimeException(""
-			   + response.getStatusLine().getStatusCode()
-			   + " : " + result);
+		try {
+			if (entity != null) {
+				InputStream stream = entity.getContent();
+				result = Utils.loadTextFile(stream, "UTF-8", MAX_FILE_SIZE);
+			}
+			if ((response.getStatusLine().getStatusCode() < 200) || (response.getStatusLine().getStatusCode() > 302)) {
+				throw new RuntimeException(""
+					+ response.getStatusLine().getStatusCode()
+					+ " : " + result);
+			}
+		} finally {
+			EntityUtils.consume(entity);
 		}
 		return result;
 	}
@@ -738,6 +801,8 @@ public class Utils {
 			map = profanityMapEveryone;
 		} else if (type == MATURE) {
 			map = profanityMapMature;
+		} else if (type == ADULT) {
+			return false;
 		}
 		String lowerText = text.toLowerCase();
 		TextStream stream = new TextStream(lowerText);
@@ -844,10 +909,10 @@ public class Utils {
 				String url = matcher.group();
 				if (url.indexOf(".png") != -1 || url.indexOf(".jpg") != -1 || url.indexOf(".jpeg") != -1 || url.indexOf(".gif") != -1
 						|| url.indexOf(".PNG") != -1 || url.indexOf(".JPG") != -1 || url.indexOf(".JPEG") != -1 || url.indexOf(".GIF") != -1) {
-					url = "<a href='" + url + "' target='_blank'><img src='" + url + "' style='max-height:300;'></a>";
+					url = "<a href='" + url + "' target='_blank'><img src='" + url + "' style='max-height:300px;'></a>";
 				} else if (url.indexOf(".mp4") != -1 || url.indexOf(".webm") != -1 || url.indexOf(".ogg") != -1
 						|| url.indexOf(".MP4") != -1 || url.indexOf(".WEBM") != -1 || url.indexOf(".OGG") != -1) {
-					url = "<a href='" + url + "' target='_blank'><video src='" + url + "' style='max-height:300;'></a>";
+					url = "<a href='" + url + "' target='_blank'><video src='" + url + "' style='max-height:300px;'></a>";
 				} else if (url.indexOf(".wav") != -1 || url.indexOf(".mp3") != -1
 						|| url.indexOf(".WAV") != -1 || url.indexOf(".MP3") != -1) {
 					url = "<a href='" + url + "' target='_blank'><audio src='" + url + "' controls>audio</a>";
@@ -968,7 +1033,7 @@ public class Utils {
 	 */
 	public static Calendar parseDate(String value, String format) throws ParseException {
 		Calendar date = Calendar.getInstance();
-		date.setTime(new SimpleDateFormat(format).parse(value));
+		date.setTime(new SimpleDateFormat(format).parse(value.trim()));
 		return date;
 	}
 
@@ -1201,6 +1266,20 @@ public class Utils {
 	}
 	
 	/**
+	 * Return if the string contains any of the characters.
+	 */
+	public static boolean containsAny(String text, String tokens) {
+		for (int index = 0; index < text.length(); index++) {
+			for (int index2 = 0; index2 < tokens.length(); index2++) {
+				if (text.charAt(index) == tokens.charAt(index2)) {
+					return false;
+				}
+			}
+		}
+		return false;
+	}
+	
+	/**
 	 * Check if a capitalized word.
 	 */
 	public static boolean isCapitalized(String text) {
@@ -1255,7 +1334,7 @@ public class Utils {
 	
 	public static boolean isAlphaNumeric(String text) {
 		TextStream stream = new TextStream(text);
-		stream.skipToAny("!@#$%^&*()+={}[]|\'\" \t\n`~<>?/:;");
+		stream.skipToAny("!@#$%^&*()+={}[]|\'\" \t\n`~<>?/:;,");
 		if (!stream.atEnd()) {
 			return false;
 		}
@@ -1376,6 +1455,40 @@ public class Utils {
 		return openStream(url, URL_TIMEOUT);
 	}
 	
+	/**
+	 * Reject non-http access and local or IP address.
+	 * SSRF security.
+	 */
+	public static URL safeURL(String value) throws MalformedURLException {
+		if (requireHttps && !value.startsWith("https")) {
+			throw new MalformedURLException("Only https URLs are allowed");
+		}
+		if (!value.startsWith("http")) {
+			throw new MalformedURLException("Only http URLs are allowed");
+		}
+		TextStream stream = new TextStream(value);
+		stream.skipToAll("//", true);
+		if (requireDomanName) {
+			if (Character.isDigit(stream.peek())) {
+				throw new MalformedURLException("IP address URL access is not allowed");
+			}
+		}
+		if (stream.peekWord().equalsIgnoreCase("localhost")) {
+			throw new MalformedURLException("Internal IP access is not allowed");
+		}
+		URL url = new URL(value);
+		InetAddress inetAddress = null;
+		try {
+			inetAddress = InetAddress.getByName(url.getHost());
+		} catch (Exception exception) {
+			throw new MalformedURLException(exception.toString());
+		}
+		if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress() || inetAddress.isLinkLocalAddress()) {
+			throw new MalformedURLException("Internal IP access is not allowed");
+		}
+		return url;
+	}
+	
 	public static InputStream openStream(URL url, int timeout) throws IOException {
 		URLConnection connection = url.openConnection();
 		connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.2.2) Gecko/20100316 Firefox/3.6.2");
@@ -1393,7 +1506,7 @@ public class Utils {
 			BufferedImage source = ImageIO.read(new ByteArrayInputStream(image));
 			if (source == null) {
 				return null;
-			}			
+			}
 			float height = source.getHeight();
 			float width = source.getWidth();
 			float max = size;
@@ -1532,7 +1645,7 @@ public class Utils {
 							lineStream = new TextStream(line);
 							while (lineStream.peek() == ':') {
 								lineStream.next();
-								writer.write("&nbsp;&nbsp;&nbsp;&nbsp;");								
+								writer.write("&nbsp;&nbsp;&nbsp;&nbsp;");
 							}
 							code = lineStream.upToAll("[code]");
 							if (code.indexOf('<') != -1) {
