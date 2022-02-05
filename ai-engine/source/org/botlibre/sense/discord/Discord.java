@@ -26,10 +26,6 @@ import org.botlibre.thought.language.Language;
 import org.botlibre.thought.language.Language.LanguageState;
 import org.botlibre.util.Utils;
 
-import org.javacord.api.DiscordApi;
-import org.javacord.api.DiscordApiBuilder;
-import org.javacord.api.listener.message.MessageCreateListener;
-import org.javacord.api.util.event.ListenerManager;
 import org.javacord.api.entity.message.Message;
 
 import io.github.furstenheim.CopyDown;
@@ -43,8 +39,10 @@ public class Discord extends BasicSense {
 	public static int MAX_WAIT = 60 * 1000;
 	
 	protected String token = "";
+	protected String savedToken = "";
 	
 	protected boolean initProperties;
+	protected LanguageState groupMode = LanguageState.Discussion;
 		
 	public Discord(boolean enabled) {
 		this.isEnabled = enabled;
@@ -63,11 +61,15 @@ public class Discord extends BasicSense {
 	public void awake() {
 		
 		this.token = this.bot.memory().getProperty("Discord.token");
+		this.savedToken = this.bot.memory().getProperty("Discord.savedToken");
 		
 		setIsEnabled(true);
 		
-		if (this.token == null || this.token.equals("")) {
+		if (this.token == null) {
 			this.token = "";
+		}
+		if (this.savedToken == null) {
+			this.savedToken = "";
 		}
 	}
 	
@@ -77,6 +79,24 @@ public class Discord extends BasicSense {
 	
 	public void setToken(String token) {
 		this.token = token;
+	}
+
+	public String getSavedToken() {
+		return savedToken;
+	}
+	
+	public void setSavedToken(String savedToken) {
+		this.savedToken = savedToken;
+	}
+
+	public LanguageState getGroupMode() {
+		initProperties();
+		return groupMode;
+	}
+
+	public void setGroupMode(LanguageState groupMode) {
+		initProperties();
+		this.groupMode = groupMode;
 	}
 	
 	public void initProperties() {
@@ -89,12 +109,24 @@ public class Discord extends BasicSense {
 		if (property != null) {
 			this.token = property;
 		}
+
+		property = this.bot.memory().getProperty("Discord.savedToken");
+		if (property != null) {
+			this.savedToken = property;
+		}
+
+		property = this.bot.memory().getProperty("Discord.groupMode");
+		if (property != null) {
+			this.groupMode = LanguageState.valueOf(property);
+		}
 		this.initProperties = true;
 	}
 	
 	public void saveProperties() {
 		Network memory = getBot().memory().newMemory();
 		memory.saveProperty("Discord.token", this.token, true);
+		memory.saveProperty("Discord.savedToken", this.savedToken, true);
+		memory.saveProperty("Discord.groupMode", String.valueOf(this.groupMode), false);
 		
 		memory.save();
 		if (this.token != null && !this.token.isEmpty()) {
@@ -102,49 +134,56 @@ public class Discord extends BasicSense {
 		}
 	}
 	
-	/**
-	 * Auto post to channel
-	 */
-	public void checkProfile() {
-		log("Checking profile.", Level.INFO);
-		try {
-			initProperties();
-		} catch (Exception exception) {
-			log(exception);
-		}
-		log("Done checking profile.", Level.INFO);
-	}
-	
 	public String processMessage(Message discord) {
 		try {
 			String fromId = discord.getAuthor().getIdAsString();
 			String fromName = discord.getAuthor().getName();
-			String recipientId = discord.getApi().getYourself().getIdAsString();
-			if (fromId.equals(recipientId)) {
+			if (fromId.equals(discord.getApi().getYourself().getIdAsString())) {
 				return null;
 			}
-			String recipientName = discord.getApi().getYourself().getName();
+			if (discord.getAuthor().isBotUser()) {
+				return null;
+			}
+			boolean group = !discord.isPrivateMessage();
+			String recipientId = null;
+			String recipientName = null;
+			if (group) {
+				if (getGroupMode() == LanguageState.Ignore) {
+					// Ignore messages sent to a group.
+					return null;
+				}
+				if (!discord.getMentionedUsers().isEmpty()) {
+					recipientId = discord.getMentionedUsers().get(0).getIdAsString();
+					recipientName = discord.getMentionedUsers().get(0).getName();
+				}
+			} else {
+				recipientId = discord.getApi().getYourself().getIdAsString();
+				recipientName = discord.getApi().getYourself().getName();
+			}
+			
+			// trim, remove @id
 			String text = Jsoup.parse(Processor.process(discord.getContent())).text();
+			text = text.replaceAll("@\\![0-9]+\\s","");
+
 			String conversationId = discord.getChannel().getIdAsString();
-			String message = processMessage(fromId, fromName, recipientName, text, conversationId);
+			String message = processMessage(text, fromId, fromName, recipientId, recipientName, discord.getApi().getYourself().getIdAsString(), conversationId, group);
 			if (message != null && !message.isEmpty()) {
 				return sendResponse(discord, message);
 			}
 		} catch (Exception exception) {
-			log("Discord send response exception", Level.INFO, exception.toString());
-			exception.printStackTrace();
+			log(exception);
 			return null;
 		}
 		return null;
 	}
 	
-	public String processMessage(String fromID, String from, String target, String message, String id) {
+	public String processMessage(String message, String userId, String userName, String targetUserId, String targetUserName, String botUserId, String conversationId, boolean group) {
 		log("Processing message", Level.INFO, message);
 		
 		this.responseListener = new ResponseListener();
 		Network memory = bot.memory().newMemory();
 //        this.messagesProcessed++;
-		inputSentence(message, fromID, from, target, id, memory);
+		inputSentence(message, userId, userName, targetUserId, targetUserName, botUserId, conversationId, group, memory);
 		memory.save();
 		String reply = null;
 		synchronized (this.responseListener) {
@@ -163,12 +202,11 @@ public class Discord extends BasicSense {
 		return reply;
 	}
 	
-	public void inputSentence(String text, String userId, String userName, String targetUserName, String id, Network network) {
+	public void inputSentence(String text, String userId, String userName, String targetUserId, String targetUserName, String botUserId, String id, boolean group, Network network) {
 		Vertex input = createInput(text.trim(), network);
 		Vertex user = network.createUniqueSpeaker(new Primitive(userId), Primitive.DISCORD, userName);
 		Vertex self = network.createVertex(Primitive.SELF);
 		input.addRelationship(Primitive.SPEAKER, user);
-		input.addRelationship(Primitive.TARGET, self);
 		
 		Vertex conversationId = network.createVertex(id);
 		Vertex today = network.getBot().awareness().getTool(org.botlibre.tool.Date.class).date(self);
@@ -185,6 +223,17 @@ public class Discord extends BasicSense {
 		conversation.addRelationship(Primitive.ID, network.createVertex(id));
 		conversation.addRelationship(Primitive.SPEAKER, user);
 		conversation.addRelationship(Primitive.SPEAKER, self);
+		if (group) {
+			this.languageState = getGroupMode();
+			if (botUserId.equals(targetUserId)) {
+				input.addRelationship(Primitive.TARGET, Primitive.SELF);
+			} else if (targetUserId != null) {
+				input.addRelationship(Primitive.TARGET, network.createUniqueSpeaker(new Primitive(targetUserId), Primitive.DISCORD, targetUserName));
+			}
+		} else {
+			this.languageState = LanguageState.Answering;
+			input.addRelationship(Primitive.TARGET, Primitive.SELF);
+		}
 		Language.addToConversation(input, conversation);
 		
 		network.save();
