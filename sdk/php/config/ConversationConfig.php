@@ -21,27 +21,23 @@ class ConversationConfig extends Config {
     public ?String $creationDate;
     public ?String $type;
 
-    public $input = array();
+    
 
     public function parseXML($xml) : void {
-        $xmlData = simplexml_load_string($xml);
-        if ($xmlData === false) {
-            echo "Failed loading XML: ";
-            foreach (libxml_get_errors() as $error) {
-                echo "<br>", $error->message;
-            }
-        } 
-        // else {
-        //     print_r($xmlData);
-        // }
+        $xmlData = Utils::loadXML($xml);
+        if($xmlData===false) {
+            return;
+        }
         $this->id = $xmlData->attributes()->id;
         $this->creationDate = $xmlData->attributes()->creationDate;
         $this->type = $xmlData->attributes()->type;
         
-        foreach($xmlData->input as $input){
+
+        $inputs = array();
+        foreach($xmlData->input as $element){
             $config = new InputConfig();
-            $config->parseXML($input);
-            $input [] = $config;
+            $config->parseXML($element);
+            array_push($inputs, $config);
         }
     }
 

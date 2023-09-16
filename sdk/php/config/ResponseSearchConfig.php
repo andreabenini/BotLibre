@@ -20,11 +20,14 @@ class ResponseSearchConfig extends Config {
     public ?String $responseType;
     public ?String $inputType;
 	public ?String $filter;
+
+    public ?String $sort;
 	public ?String $duration;
 	public ?String $restrict;
 	public ?String $page;
 
-    public function toXML() : ?String {
+    public function toXML() : String {
+        $writer = "";
         $writer .= "<response-search";
         $this->writeCredentails($writer);
         $writer .= " responseType=\"" . $this->responseType . "\"";
@@ -36,6 +39,9 @@ class ResponseSearchConfig extends Config {
         }
         if(isset($this->duration)) {
             $writer .= " duration=\"" . $this->duration . "\"";
+        }
+        if(isset($this->sort)) {
+            $writer .= " sort=\"" . $this->sort . "\"";
         }
         if(isset($this->restrict)) {
             $writer .= " restrict=\"" . $this->restrict . "\"";

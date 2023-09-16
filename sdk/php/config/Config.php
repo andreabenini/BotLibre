@@ -46,19 +46,10 @@ class Config
 
     public function parseXML($xml) : void
     {
-        $xmlData = simplexml_load_string($xml);
-        if ($xmlData === false) {
-            echo "Failed loading XML: <br>";
-            var_dump($xml);
-            echo "<br>";
-            foreach (libxml_get_errors() as $error) {
-                echo "<br>", $error->message;
-            }
+        $xmlData = Utils::loadXML($xml);
+        if($xmlData===false) {
             return;
-        } else {
-            print_r($xmlData);
         }
-        //$this->user = $tempXML->user;
         
         $this->application = $xmlData->attributes()->application;
         $this->domain = $xmlData->attributes()->domain;
@@ -68,7 +59,7 @@ class Config
     }
     public function writeCredentails(&$writer) : string
     {
-        if ($this->user != null && strlen($this->user > 0)) {
+        if (isset($this->user) && strlen($this->user > 0)) {
             $writer .= " user=\"" . $this->user . "\"";
         }
         if (isset($this->token) && strlen($this->token) > 0) {

@@ -24,8 +24,8 @@ class GraphicConfig extends WebMediumConfig {
 
 
 
-    public function toXML() : ?String {
-        $writer .= "<graphic";
+    public function toXML() : String {
+        $writer = "<graphic";
         if(isset($this->media)) {
             $writer .= " media=\"" . $this->media . "\"";
         }
@@ -56,16 +56,10 @@ class GraphicConfig extends WebMediumConfig {
     public function parseXML($xml) : void {
         parent::parseXML($xml);
         //loading xml
-        $xmlData = simplexml_load_string($xml);
-        if ($xmlData === false) {
-            echo "Failed loading XML: ";
-            foreach (libxml_get_errors() as $error) {
-                echo "<br>", $error->message;
-            }
+        $xmlData = Utils::loadXML($xml);
+        if($xmlData === false) {
+            return;
         }
-        // else {
-        //     print_r($xmlData);
-        // }
         $this->media = $xmlData->attributes()->media;
         $this->fileName = $xmlData->attributes()->fileName;
         $this->fileType = $xmlData->attributes()->fileType;

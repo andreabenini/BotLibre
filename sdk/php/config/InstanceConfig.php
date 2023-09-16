@@ -17,11 +17,11 @@
  *
  ******************************************************************************/
 class InstanceConfig extends WebMediumConfig {
-    public string $size;
-    public string $instanceAvatar;
+    public ?string $size;
+    public ?string $instanceAvatar;
     public $allowForking;
     public $hasAPI;
-    public string $template;
+    public ?string $template;
     public int $rank;
     public int $wins;
     public int $losses;
@@ -43,12 +43,13 @@ class InstanceConfig extends WebMediumConfig {
     }
 
     public function toXML() : string {
+        $writer = "";
         $writer .= "<instance";
         if($this->allowForking) {
             $writer .= " allowForking=\"true\"";
         }
         if(isset($this->instanceAvatar)){
-            $writer .= " instanceAvatar=\"" . $this->instanceAvatar + "\"";
+            $writer .= " instanceAvatar=\"" . $this->instanceAvatar . "\"";
         }
         /*
         * When used together, the $ and & signs are used to pass variables by reference in PHP functions.
@@ -66,14 +67,10 @@ class InstanceConfig extends WebMediumConfig {
 
     public function parseXML($xml) : void {
         parent::parseXML($xml);
-        $xmlData = simplexml_load_string($xml);
-        if ($xmlData === false) {
-            echo "Failed loading XML: ";
-            foreach (libxml_get_errors() as $error) {
-                echo "<br>", $error->message;
-            }
+        $xmlData = Utils::loadXML($xml);
+        if($xmlData===false) {
             return;
-        } 
+        }
         $this->allowForking = $xmlData->attributes()->allowForking;
         $this->hasAPI = $xmlData->attributes()->hasAPI;
         $this->size = $xmlData->attributes()->size;

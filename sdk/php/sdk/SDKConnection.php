@@ -18,12 +18,13 @@
  ******************************************************************************/
 
 
-require_once "Credentials.php";
+require_once("Credentials.php");
 require_once('./config/UserConfig.php');
 require_once('./config/Config.php');
 require_once('./config/ChatConfig.php');
 require_once('./config/ChatResponse.php');
 require_once('./config/DomainConfig.php');
+require_once('./config/ForumConfig.php');
 require_once('./config/ForumPostConfig.php');
 require_once('./config/UserMessageConfig.php');
 require_once('./config/ResponseConfig.php');
@@ -40,6 +41,14 @@ require_once('./config/ChannelConfig.php');
 require_once('./config/BotModeConfig.php');
 require_once('./config/LearningConfig.php');
 require_once('./config/VoiceConfig.php');
+require_once('./config/ScriptConfig.php');
+require_once('./config/ScriptSourceConfig.php');
+require_once('./config/ResponseSearchConfig.php');
+require_once('./config/TrainingConfig.php');
+require_once('./config/GraphicConfig.php');
+require_once('./config/ConversationConfig.php');
+require_once('./config/InputConfig.php');
+
 
 class SDKConnection
 {
@@ -100,6 +109,8 @@ class SDKConnection
 		return $this->user;
 	}
 
+
+
 	/**
 	 * Execute the custom API.
 	 */
@@ -136,10 +147,11 @@ class SDKConnection
 	 * A domain is an isolated content space.
 	 * Any browse or query request will be specific to the domain's content.
 	 */
-	// public function connect(DomainConfig $config) : DomainConfig {
-	// 	$this->domain = fetch(config);
-	// 	return $this->domain;
-	// }
+	public function connectDomain(DomainConfig $config): DomainConfig
+	{
+		$this->domain = $this->fetch($config);
+		return $this->domain;
+	}
 
 	/**
 	 * Disconnect from the connection.
@@ -344,7 +356,7 @@ class SDKConnection
 	/**
 	 * Create a new file/image/media attachment for a chat channel.
 	 */
-	public function createChannelFileAttachment(string $file, MediaConfig $config)
+	public function createChannelFileAttachment($file, MediaConfig $config)
 	{
 		$config->addCredentials($this);
 		$xml = $this->POSTFILE($this->url . "/create-channel-attachment", $file, $config->name, $config->toXML());
@@ -364,7 +376,7 @@ class SDKConnection
 	/**
 	 * Create a new file/image/media attachment for a chat channel.
 	 */
-	public function createChannelImageAttachment(string $file, MediaConfig $config)
+	public function createChannelImageAttachment($file, MediaConfig $config)
 	{
 		$config->addCredentials($this);
 		$xml = $this->POSTIMAGE($this->url . "/create-channel-attachment", $file, $config->name, $config->toXML());
@@ -653,7 +665,7 @@ class SDKConnection
 	/**
 	 * Return the bot's voice configuration.
 	 */
-	public function getVoice(InstanceConfig $config)
+	public function getVoice(InstanceConfig $config): ?VoiceConfig
 	{
 		$config->addCredentials($this);
 		$xml = $this->POST($this->url . "/get-voice", $config->toXML());
@@ -683,16 +695,10 @@ class SDKConnection
 			return $defaultResponses;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
+				return;
 			}
-			// else {
-			//     print_r($xmlData);
-			// }
 			foreach ($xmlData as $element) {
 				array_push($defaultResponses, $element);
 			}
@@ -706,7 +712,7 @@ class SDKConnection
 	/**
 	 * Return the bot's greetings.
 	 */
-	public function getGreetings(ResponseSearchConfig $config)
+	public function getGreetings(InstanceConfig $config)
 	{
 		$config->addCredentials($this);
 		$xml = $this->POST($this->url . "/get-greetings", $config->toXML());
@@ -715,16 +721,11 @@ class SDKConnection
 			return $greetings;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
+				return;
 			}
-			// else {
-			//     print_r($xmlData);
-			// }
+
 			foreach ($xmlData as $element) {
 				array_push($greetings, $element);
 			}
@@ -733,6 +734,9 @@ class SDKConnection
 			echo "Error: " . $exception->getMessage();
 		}
 	}
+
+
+
 	/**
 	 * Search the bot's responses.
 	 */
@@ -745,17 +749,11 @@ class SDKConnection
 			return $responses;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
+				return;
 			}
-			// else {
-			//     print_r($xmlData);
-			// }
-			foreach ($xmlData as $element) {
+			foreach ($xmlData->response as $element) {
 				$response = new ResponseConfig();
 				$response->parseXML($element);
 				array_push($responses, $response);
@@ -771,22 +769,16 @@ class SDKConnection
 	public function getConversations(ResponseSearchConfig $config)
 	{
 		$config->addCredentials($this);
-		$xml = $this->POST($this->url . "/get-converstaions", $config->toXML());
+		$xml = $this->POST($this->url . "/get-conversations", $config->toXML());
 		$conversations = array();
 		if ($xml == null) {
 			return $conversations;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
+				return;
 			}
-			// else {
-			//     print_r($xmlData);
-			// }
 			foreach ($xmlData as $element) {
 				$response = new ConversationConfig();
 				$response->parseXML($element);
@@ -817,6 +809,220 @@ class SDKConnection
 		}
 	}
 
+
+	/**
+	 * Return the list of content for the browse criteria.
+	 * The type defines the content type (one of Bot, Forum, Channel, Domain).
+	 */
+	public function browse(BrowseConfig $config)
+	{
+		$config->addCredentials($this);
+		$type = "";
+		if ($config->type == "Bot") {
+			$type = "/get-instances";
+		} else {
+			$type = "/get-" . strtolower($config->type) . "s";
+		}
+		echo "BROWSE - TYPE: " . $type;
+		$xml = $this->POST($this->url . $type, $config->toXML());
+		$instances = array();
+		if ($xml == null) {
+			return $instances;
+		}
+		try {
+			$xmlData = Utils::loadXML($xml);
+			if ($xmlData === false) {
+				return;
+			}
+			foreach ($xmlData as $element) {
+				$instance = null;
+				if ($config->type === "Bot") {
+					$instance = new InstanceConfig();
+				} else if ($config->type === "Forum") {
+					$instance = new ForumConfig();
+				} else if ($config->type === "Channel") {
+					$instance = new ChannelConfig();
+				} else if ($config->type === "Domain") {
+					$instance = new DomainConfig();
+				} else if ($config->type === "Avatar") {
+					$instance = new AvatarConfig();
+				} else if ($config->type === "Script") {
+					$instance = new ScriptConfig();
+				} else if ($config->type === "Graphic") {
+					$instance = new GraphicConfig();
+				}
+				$instance->parseXML($element);
+				array_push($instances, $instance);
+			}
+			return $instances;
+		} catch (Exception $exception) {
+			echo "Error: " . $exception->getMessage();
+		}
+	}
+
+
+
+	/**
+	 * Return the list of media for the avatar.
+	 */
+	public function getAvatarMedia(AvatarConfig $config)
+	{
+		$config->addCredentials($this);
+		$xml = $this->POST($this->url . "/get-avatar-media", $config->toXML());
+		$instances = array();
+		if ($xml == null) {
+			return $instances;
+		}
+		try {
+			$xmlData = Utils::loadXML($xml);
+			if ($xmlData === false) {
+				return;
+			}
+			foreach ($xmlData as $element) {
+				$instance = new AvatarMedia();
+				$instance->parseXML($element);
+				array_push($instances, $instance);
+			}
+			return $instances;
+		} catch (Exception $exception) {
+			echo "Error: " . $exception->getMessage();
+		}
+	}
+
+
+	/**
+	 * Return the script source.
+	 */
+	public function getScriptSource(ScriptConfig $config): ?ScriptSourceConfig
+	{
+		$config->addCredentials($this);
+		$xml = $this->POST($this->url . "/get-script-source", $config->toXML());
+		if ($xml == null) {
+			return null;
+		}
+		try {
+			$script = new ScriptSourceConfig();
+			$script->parseXML($xml);
+			return $script;
+		} catch (Exception $exception) {
+			echo "Error: " . $exception->getMessage();
+		}
+	}
+
+
+	/**
+	 * Create or update script - Save the script source
+	 */
+	public function saveScriptSource(ScriptSourceConfig $config): void
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/save-script-source", $config->toXML());
+	}
+
+
+
+	/**
+	 * Return the source code for a single bot script
+	 */
+	public function getBotScriptSource(ScriptSourceConfig $config): ?ScriptSourceConfig
+	{
+		$config->addCredentials($this);
+		$xml = $this->POST($this->url . "/get-bot-script-source", $config->toXML());
+		if ($xml == null) {
+			return null;
+		}
+		try {
+			$botScript = new ScriptSourceConfig();
+			$botScript->parseXML($xml);
+			return $botScript;
+		} catch (Exception $exception) {
+			echo "Error: " . $exception->getMessage();
+		}
+	}
+
+	/**
+	 * Return a list of the bots scripts.
+	 */
+	public function getBotScripts(InstanceConfig $config)
+	{
+		$config->addCredentials($this);
+		$xml = $this->POST($this->url . "/get-bot-scripts", $config->toXML());
+		$botScripts = array();
+		if ($xml == null) {
+			return $botScripts;
+		}
+		try {
+			$xmlData = Utils::loadXML($xml);
+			if ($xmlData === false) {
+				return;
+			}
+			foreach ($xmlData as $element) {
+				$script = new ScriptConfig();
+				$script->parseXML($element);
+				array_push($botScripts, $script);
+			}
+			return $botScripts;
+		} catch (Exception $exception) {
+			echo "Error: " . $exception->getMessage();
+		}
+	}
+
+
+	/**
+	 * import a script to the bot
+	 */
+	public function importBotScript(ScriptConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/import-bot-script", $config->toXML());
+	}
+
+
+
+	/**
+	 * import a chatlog/response list to the bot
+	 */
+	public function importBotLog(ScriptConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/import-bot-log", $config->toXML());
+	}
+
+	/**
+	 * Save the bot script source
+	 */
+	public function saveBotScriptSource(ScriptSourceConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/save-bot-script-source", $config->toXML());
+	}
+
+	/**
+	 * Delete selected bot script
+	 */
+	public function deleteBotScript(ScriptSourceConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/delete-bot-script", $config->toXML());
+	}
+
+	/**
+	 * Move up one bot script
+	 */
+	public function upBotScript(ScriptSourceConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/up-bot-script", $config->toXML());
+	}
+
+	/**
+	 * Move down one bot script
+	 */
+	public function downBotScript(ScriptSourceConfig $config)
+	{
+		$config->addCredentials($this);
+		$this->POST($this->url . "/down-bot-script", $config->toXML());
+	}
 
 	/**
 	 * Process the speech message and return the server generate text-to-speech audio file.
@@ -889,9 +1095,12 @@ class SDKConnection
 	/**
 	 * Return the current connected user.
 	 */
-	public function getUser(): UserConfig
+	public function getUser(): ?UserConfig
 	{
-		return $this->user;
+		if (isset($this->user)) {
+			return $this->user;
+		}
+		return null;
 	}
 
 	/**
@@ -971,23 +1180,20 @@ class SDKConnection
 		$config->addCredentials($this);
 		$xml = $this->POST($this->url . "/get-" . $config->getType() . "-admins", $config->toXML());
 		$users = array();
-		if ($users == null) {
+		if ($xml == null) {
 			return $users;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$user = new UserConfig();
-					$user->parseXML($element);
-					array_push($users, $user->user);
-				}
+				return;
 			}
+			foreach ($xmlData as $element) {
+				$user = new UserConfig();
+				$user->parseXML($element);
+				array_push($users, $user);
+			}
+
 			return $users;
 		} catch (Exception $exception) {
 			echo "Error: " . $exception->getMessage();
@@ -1009,19 +1215,16 @@ class SDKConnection
 			return $users;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$userConfig = new UserConfig();
-					$userConfig->parseXML($element);
-					array_push($users, $userConfig);
-				}
+				return;
 			}
+			foreach ($xmlData as $element) {
+				$userConfig = new UserConfig();
+				$userConfig->parseXML($element);
+				array_push($users, $userConfig);
+			}
+
 			return $users;
 		} catch (Exception $exception) {
 			echo "Error: " . $exception->getMessage();
@@ -1040,19 +1243,16 @@ class SDKConnection
 			return $instances;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$post = new ForumPostConfig();
-					$post->parseXML($element);
-					array_push($instances, $post);
-				}
+				return;
 			}
+			foreach ($xmlData as $element) {
+				$post = new ForumPostConfig();
+				$post->parseXML($element);
+				array_push($instances, $post);
+			}
+
 			return $instances;
 		} catch (Exception $exception) {
 			echo "Error: " . $exception->getMessage();
@@ -1072,18 +1272,14 @@ class SDKConnection
 			return $categories;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$category = new ContentConfig();
-					$category->parseXML($element);
-					array_push($categories, $category);
-				}
+				return;
+			}
+			foreach ($xmlData as $element) {
+				$category = new ContentConfig();
+				$category->parseXML($element);
+				array_push($categories, $category);
 			}
 			return $categories;
 		} catch (Exception $exception) {
@@ -1104,18 +1300,15 @@ class SDKConnection
 			return $tags;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					//tags.add(((Element)root.getChildNodes().item(index)).getAttribute("name"));
-					array_push($tags, $element);
-				}
+				return;
 			}
+			foreach ($xmlData as $element) {
+				//tags.add(((Element)root.getChildNodes().item(index)).getAttribute("name"));
+				array_push($tags, $element);
+			}
+
 			return $tags;
 		} catch (Exception $exception) {
 			echo "Error: " . $exception->getMessage();
@@ -1135,19 +1328,16 @@ class SDKConnection
 			return $instances;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$instance = new InstanceConfig();
-					$instance->parseXML($element);
-					array_push($instances, $instance);
-				}
+				return;
 			}
+			foreach ($xmlData as $element) {
+				$instance = new InstanceConfig();
+				$instance->parseXML($element);
+				array_push($instances, $instance);
+			}
+
 			return $instances;
 		} catch (Exception $exception) {
 			echo "Error: " . $exception->getMessage();
@@ -1167,18 +1357,14 @@ class SDKConnection
 			return $users;
 		}
 		try {
-			$xmlData = simplexml_load_string($xml);
+			$xmlData = Utils::loadXML($xml);
 			if ($xmlData === false) {
-				echo "Failed loading XML: ";
-				foreach (libxml_get_errors() as $error) {
-					echo "<br>", $error->message;
-				}
-			} else {
-				foreach ($xmlData as $element) {
-					$user = new UserConfig();
-					$user->parseXML($element);
-					array_push($users, $user->user);
-				}
+				return;
+			}
+			foreach ($xmlData as $element) {
+				$user = new UserConfig();
+				$user->parseXML($element);
+				array_push($users, $user->user);
 			}
 			return $users;
 		} catch (Exception $exception) {
@@ -1211,7 +1397,7 @@ class SDKConnection
 	public function saveChannelBotMode(BotModeConfig $config): void
 	{
 		$config->addCredentials($this);
-		$this->POST($this->url + "/save-channel-bot-mode", $config->toXML());
+		$this->POST($this->url . "/save-channel-bot-mode", $config->toXML());
 	}
 
 
@@ -1221,7 +1407,7 @@ class SDKConnection
 	public function saveForumBotMode(BotModeConfig $config): void
 	{
 		$config->addCredentials($this);
-		$this->POST($this->url + "/save-forum-bot-mode", $config->toXML());
+		$this->POST($this->url . "/save-forum-bot-mode", $config->toXML());
 	}
 
 	/**
@@ -1230,7 +1416,7 @@ class SDKConnection
 	public function saveLearning(LearningConfig $config): void
 	{
 		$config->addCredentials($this);
-		$this->POST($this->url + "/save-learning", $config->toXML());
+		$this->POST($this->url . "/save-learning", $config->toXML());
 	}
 
 
@@ -1240,7 +1426,7 @@ class SDKConnection
 	public function saveVoice(VoiceConfig $config): void
 	{
 		$config->addCredentials($this);
-		$this->POST($this->url + "/save-voice", $config->toXML());
+		$this->POST($this->url . "/save-voice", $config->toXML());
 	}
 
 	/**
@@ -1249,7 +1435,7 @@ class SDKConnection
 	public function saveBotAvatar(InstanceConfig $config): void
 	{
 		$config->addCredentials($this);
-		$this->POST($this->url + "/save-bot-avatar", $config->toXML());
+		$this->POST($this->url . "/save-bot-avatar", $config->toXML());
 	}
 
 	/**
@@ -1275,7 +1461,7 @@ class SDKConnection
 	/**
 	 * Save the image as the avatar's background.
 	 */
-	public function saveAvatarBackground(string $file, AvatarMedia $config): void
+	public function saveAvatarBackground($file, AvatarMedia $config): void
 	{
 		$config->addCredentials($this);
 		$this->POSTIMAGE($this->url . "/save-avatar-background", $file, $config->name, $config->toXML());
@@ -1284,10 +1470,10 @@ class SDKConnection
 	/**
 	 * Add the avatar media file to the avatar.
 	 */
-	public function createAvatarMedia(string $file, AvatarMedia $config): void
+	public function createAvatarMedia($file, AvatarMedia $config): void
 	{
 		$config->addCredentials($this);
-		if ((pathinfo($file, PATHINFO_EXTENSION) === "jpg") || (pathinfo($file, PATHINFO_EXTENSION) === "jpeg")) {
+		if (str_contains("image", $file->mime)) {
 			if ($config->hd) {
 				$this->POSTHDIMAGE($this->url . "/create-avatar-media", $file, $config->name, $config->toXML());
 			} else {
@@ -1301,10 +1487,10 @@ class SDKConnection
 	/**
 	 * Add the graphic media file to the graphic.
 	 */
-	public function createGraphicMedia(string $file, GraphicConfig $config): void
+	public function createGraphicMedia($file, GraphicConfig $config): void
 	{
 		$config->addCredentials($this);
-		if ((pathinfo($file, PATHINFO_EXTENSION) === "jpg") || (pathinfo($file, PATHINFO_EXTENSION) === "jpeg")) {
+		if (str_contains("image", $file->mime)) {
 			$this->POSTIMAGE($this->url . "/update-graphic-media", $file, $config->fileName, $config->toXML());
 		} else {
 			$this->POSTFILE($this->url . "/update-graphic-media", $file, $config->fileName, $config->toXML());
@@ -1316,10 +1502,10 @@ class SDKConnection
 	 * Update the user's icon.
 	 * The file will be uploaded to the server.
 	 */
-	public function updateIconUser(string $file, UserConfig $config): ?UserConfig
+	public function updateIconUser($file, UserConfig $config): ?UserConfig
 	{
 		$config->addCredentials($this);
-		$xml = $this->POSTIMAGE($this->url . "/update-user-icon", $file, "image.jpg", $config->toXML());
+		$xml = $this->POSTIMAGE($this->url . "/update-user-icon", $file, "name", $config->toXML());
 		if ($xml == null) {
 			return null;
 		}
@@ -1358,12 +1544,7 @@ class SDKConnection
 			echo $e;
 		} else {
 			if ($this->debug) {
-				if (isset($response) || $response !== null) {
-					$result = simplexml_load_string($response) or die("Error: Cannot create object");
-					$debugComment = "Result after the request.";
-					$debugInfo = $result;
-					include "./views/debug.php";
-				}
+				$this->checkResponse($response);
 			}
 		}
 		curl_close($curl);
@@ -1372,29 +1553,24 @@ class SDKConnection
 	public function POST(string $url, string $xml): string
 	{
 		if ($this->debug) {
-			$debugComment = "POST_URL: " . $url;
-			$debugInfo = htmlentities($xml);
-			include "./views/debug.php";
+			Utils::includeMessage("POST_URL: " . $url, null, htmlentities($xml));
 		}
 		$curl = curl_init();
-		$xmlData = simplexml_load_string($xml) or die("Error: Prior of xml request. Cannot create object");
 		if ($this->debug) {
-			$debugComment = "POST: Sending xml request.";
-			$debugInfo = $xmlData;
-			include "./views/debug.php";
+			Utils::includeMessage("POST: Sending xml request.", null, simplexml_load_string($xml));
 		}
 
 		curl_setopt($curl, CURLOPT_URL, $url);
 		curl_setopt($curl, CURLOPT_POST, true);
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $xml); //It needs the actual xml text not the object
+		curl_setopt($curl, CURLOPT_POSTFIELDS, $xml); //It needs the actual xml text (as a string) not the XML object
 		// The result of simplexml_load_string($xml) passing a string xml will return a data object xml.
 		// curl_setopt just need a string text of the xml.
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 		//curl_setopt($curl, CURLOPT_HEADER, 1);
-
 		$headers = [
-			'Content-Type: application/xml',
-			'Accept: application/xml'
+			'Content-Type: application/xml'
+			// ,
+			// 'Accept: application/xml' //remove this line to avoid HTTP STATUS 406.
 		];
 
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
@@ -1411,36 +1587,19 @@ class SDKConnection
 	}
 
 
-	public function POSTIMAGE(string $url, string $file, string $name, string $xml): ?string
+	public function POSTIMAGE(string $url, $file, string $name, string $xml): ?string
 	{
 		if ($this->debug) {
-			$debugComment = "POST_FILE: " . $name . "<br>" . $url . "<br>" . $file;
-			$debugInfo = htmlentities($xml);
-			include "./views/debug.php";
+			Utils::includeMessage("POST_IMAGE: " . $name . "<br>" > $url , null, htmlentities($xml));
 		}
 		try {
 			$curl = curl_init();
-			$xmlData = simplexml_load_string($xml) or die("Error: Prior of xml request. Cannot create object");
 			if ($this->debug) {
-				$debugComment = "POST: Sending xml request.";
-				$debugInfo = $xmlData;
-				include "./views/debug.php";
+				Utils::includeMessage("DATA: ", null, simplexml_load_string($xml));
 			}
 			curl_setopt($curl, CURLOPT_URL, $url);
-			$originalImage = imagecreatefromjpeg($file);
-			$resizedImage = imagecreatetruecolor(300, 300);
-
-			//Resizing the image
-			imagecopyresampled($resizedImage, $originalImage, 0, 0, 0, 0, 300, 300, imagesx($originalImage), imagesy($originalImage));
-
-			// Create a temporary file to store the resized image
-			$tmpFilename = tempnam(sys_get_temp_dir(), 'upload');
-			imagejpeg($resizedImage, $tmpFilename, 90);
-			//curl file object
-			$fileBody = new CURLFile($tmpFilename, 'image/jpeg', $name);
-
 			$postData = array(
-				'file' => $fileBody,
+				'file' => $file,
 				'xml' => $xml
 			);
 
@@ -1448,24 +1607,17 @@ class SDKConnection
 			curl_setopt($curl, CURLOPT_POSTFIELDS, $postData);
 			curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 			$headers = [
-				'Content-Type: multipart/form-data',
-				'Accept: text/plain'
+				'Content-Type: multipart/form-data'
 			];
 
 			curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
-
-			ob_start(); //Start output buffering
-			print_r($fileBody);
-			echo ob_get_clean() . "<br>"; //End output buffering. 
-			//Get the output buffer contents and clear the buffer
-
 			//Execute request
 			$response = curl_exec($curl);
-			
+
 			//Check for errors
 			if (curl_errno($curl)) {
-				echo "Error: " . curl_error($curl);
+				Utils::includeMessage("Error: POST IMAGE", null ,curl_error($curl), false);
 			} else {
 				if ($this->debug) {
 					$this->checkResponse($response);
@@ -1473,71 +1625,50 @@ class SDKConnection
 			}
 			//Clean up
 			curl_close($curl);
-			imagedestroy($originalImage);
-			imagedestroy($resizedImage);
-			unlink($tmpFilename);
 			return $response;
 		} catch (Exception $exception) {
-			echo "Error: " . $exception->getMessage();
+			Utils::includeMessage("Error: POST IMAGE", null, $exception->getMessage(), false);
 		}
 	}
 
 	public function checkResponse($response): void
 	{
 		libxml_use_internal_errors(true); //Enable internal error handling
+		if ($response === "") {
+			Utils::includeMessage("200 OK");
+			return;
+		}
 		if (isset($response) || $response !== null) {
-			$debugComment = "<br>Result after the request.";
 			$result = simplexml_load_string($response);
 			if ($result === false) {
-				$debugInfo = "";
-				$debugInfo .= $response;
 				// XML parsing failed, handle the error
 				$errors = libxml_get_errors();
 				foreach ($errors as $error) {
-					$debugInfo .= "<br>XML Error: " . $error->message;
+					$response .= "<br>XML Error: " . $error->message;
 				}
 				libxml_clear_errors(); //Clear the error buffer
 			} else {
-				$debugInfo = $result;
+				$response .= "<br>200 OK";
 			}
-			include "./views/debug.php";
+			Utils::includeMessage("RESPONSE:", null, $response);
 		}
 		libxml_use_internal_errors(false); //Disable 
 	}
 
 
-	public function POSTHDIMAGE(string $url, string $file, string $name, string $xml): ?string
+	public function POSTHDIMAGE(string $url, $file, string $name, string $xml): ?string
 	{
 		if ($this->debug) {
-			$debugComment = "POST_FILE: " . $name . "<br>" . $url . "<br>" . $file;
-			$debugInfo = htmlentities($xml);
-			include "./views/debug.php";
+			Utils::includeMessage("POST_HD_IMAGE: " . $name . "<br>" > $url , null, htmlentities($xml));
 		}
 		try {
 			$curl = curl_init();
-			$xmlData = simplexml_load_string($xml) or die("Error: Prior of xml request. Cannot create object");
 			if ($this->debug) {
-				$debugComment = "POST: Sending xml request.";
-				$debugInfo = $xmlData;
-				include "./views/debug.php";
+				Utils::includeMessage("DATA: ", null, simplexml_load_string($xml));
 			}
 			curl_setopt($curl, CURLOPT_URL, $url);
-			$originalImage = imagecreatefromjpeg($file);
-			$resizedImage = imagecreatetruecolor(600, 600);
-
-			//Resizing the image
-			imagecopyresampled($resizedImage, $originalImage, 0, 0, 0, 0, $desiredWidth, $desiredHeight, imagesx($originalImage), imagesy($originalImage));
-
-			//Compress the resized image to a JPEG byte array
-			//there is a code
-			ob_start();
-			imagejpeg($resizedImage, null, 90);
-			$byte_arr = ob_get_clean();
-			//curl file object
-			$fileBody = new CURLFile(null, 'image/jpeg', $name);
-			//Data
 			$postData = array(
-				'file' => $fileBody,
+				'file' => $file,
 				'xml' => $xml
 			);
 
@@ -1546,7 +1677,6 @@ class SDKConnection
 			curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 			$headers = [
 				'Content-Type: application/xml',
-				'Accept: application/xml'
 			];
 
 			curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
@@ -1555,43 +1685,30 @@ class SDKConnection
 
 			//Check for errors
 			if (curl_errno($curl)) {
-				echo "Error: " . curl_error($curl);
+				Utils::includeMessage("Error: POST HD IMAGE", null ,curl_error($curl), false);
 			} else {
 				if ($this->debug) {
-					if (isset($response) || $response !== null) {
-						$result = simplexml_load_string($response) or die("Error: Cannot create object");
-						$debugComment = "Result after the request.";
-						$debugInfo = $result;
-						include "./views/debug.php";
-					}
+					$this->checkResponse($response);
 				}
 			}
 			curl_close($curl);
-			echo $response;
+			return $response;
 		} catch (Exception $exception) {
-			echo "Error: " . $exception->getMessage();
+			Utils::includeMessage("Error: POST HD IMAGE", null, $exception->getMessage(), false);
 		}
 	}
 
-	public function POSTFILE(string $url, string $path, string $name, string $xml): ?string
+	public function POSTFILE(string $url, $file, string $name, string $xml): ?string
 	{
 		if ($this->debug) {
-			$debugComment = "POST_FILE: " . $name . "<br>" . $url . "<br>" . $path;
-			$debugInfo = htmlentities($xml);
-			include "./views/debug.php";
+			Utils::includeMessage("POST_FILE: " . $name . "<br>" > $url , null, htmlentities($xml));
 		}
 		try {
-			$ch = curl_init();
-			$xmlData = simplexml_load_string($xml) or die("Error: Prior of xml request. Cannot create object");
+			$curl = curl_init();
 			if ($this->debug) {
-				$debugComment = "POST: Sending xml request.";
-				$debugInfo = $xmlData;
-				include "./views/debug.php";
+				Utils::includeMessage("DATA: ", null, simplexml_load_string($xml));
 			}
 			curl_setopt($curl, CURLOPT_URL, $url);
-			//curl file object
-			$file = new CURLFile($path, mime_content_type($path), basename($path));
-			//Data
 			$postData = array(
 				'file' => $file,
 				'xml' => $xml
@@ -1602,7 +1719,6 @@ class SDKConnection
 			curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 			$headers = [
 				'Content-Type: multipart/form-data',
-				'Accept: application/xml' //text/plain
 			];
 
 			curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
@@ -1611,21 +1727,16 @@ class SDKConnection
 
 			//Check for errors
 			if (curl_errno($curl)) {
-				echo "Error: " . curl_error($curl);
+				Utils::includeMessage("Error: POST FILE", null ,curl_error($curl), false);
 			} else {
 				if ($this->debug) {
-					if (isset($response) || $response !== null) {
-						$result = simplexml_load_string($response) or die("Error: Cannot create object");
-						$debugComment = "Result after the request.";
-						$debugInfo = $result;
-						include "./views/debug.php";
-					}
+					$this->checkResponse($response);
 				}
 			}
 			curl_close($curl);
-			echo $response;
+			return $response;
 		} catch (Exception $exception) {
-			echo "Error: " . $exception->getMessage();
+			Utils::includeMessage("Error: POST FILE", null, $exception->getMessage(), false);
 		}
 	}
 }
