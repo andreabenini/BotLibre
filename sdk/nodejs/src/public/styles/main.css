@@ -1,0 +1,65 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+table {
+    text-align: left;
+    width: 25%;
+}
+
+input {
+    width: 100%;
+    font-size: 15px;
+}
+
+div {
+    margin-bottom: 10px;
+    border: black solid;
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    text-align: center;
+    margin: 10px;
+}
+
+p {
+    font-size: 18px;
+}
+
+#result {
+    text-align: left;
+    overflow: auto;
+}
+
+#apiSelector {
+    width: 200px;
+    font-family: 14px;
+}
+
+#apiLabel {
+    width: 150px;
+    font-size: 25px;
+}
+
+label {
+    display: block;
+}
+
+select {
+    font-size: 19px;
+}
+
+button {
+    background-color: #93d495;
+    font-size: 18px;
+    color: rgb(0, 0, 0);
+    cursor: pointer;
+    border-color: rgb(132, 132, 255);
+    border-radius: 10px;
+    width: 100px;
+    margin-left: 10px;
+}
+
+h1 {
+    font-family: 'Courier New', Courier, monospace;
+}
